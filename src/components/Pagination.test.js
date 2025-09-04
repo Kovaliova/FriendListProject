@@ -13,11 +13,9 @@ describe('Pagination', () => {
   test('рендерит страницы корректно и стрелки', () => {
     render(<Pagination page={3} total={50} limit={5} onPage={() => {}} />);
 
-    // стрелки
     expect(screen.getByText('←')).toBeInTheDocument();
     expect(screen.getByText('→')).toBeInTheDocument();
 
-    // страницы
     expect(screen.getByText('1')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
     expect(screen.getByText('3')).toHaveClass('active');
@@ -25,7 +23,6 @@ describe('Pagination', () => {
     expect(screen.getByText('5')).toBeInTheDocument();
     expect(screen.getByText('10')).toBeInTheDocument();
 
-    // многоточие
     expect(screen.getAllByText('…').length).toBeGreaterThan(0);
   });
 

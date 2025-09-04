@@ -21,7 +21,6 @@ describe('UserCard', () => {
         onFollow={() => {}}
         onToggleHidden={() => {}}
         onClick={() => {}}
-        busy={false}
       />
     );
 
@@ -34,7 +33,7 @@ describe('UserCard', () => {
   test('кнопка подписки показывает "Подписаться" и вызывает onFollow', () => {
     const onFollow = jest.fn();
     render(
-      <UserCard user={user} onFollow={onFollow} onToggleHidden={() => {}} onClick={() => {}} busy={false} />
+      <UserCard user={user} onFollow={onFollow} onToggleHidden={() => {}} onClick={() => {}} />
     );
 
     const followBtn = screen.getByText('Подписаться');
@@ -44,19 +43,10 @@ describe('UserCard', () => {
     expect(onFollow).toHaveBeenCalledWith(user.id);
   });
 
-  test('кнопка подписки дизейблится если busy=true', () => {
-    render(
-      <UserCard user={user} onFollow={() => {}} onToggleHidden={() => {}} onClick={() => {}} busy={true} />
-    );
-
-    const followBtn = screen.getByText('Подписаться').closest('button');
-    expect(followBtn).toBeDisabled();
-  });
-
   test('кнопка скрытия/показа вызывает onToggleHidden', () => {
     const onToggleHidden = jest.fn();
     render(
-      <UserCard user={user} onFollow={() => {}} onToggleHidden={onToggleHidden} onClick={() => {}} busy={false} />
+      <UserCard user={user} onFollow={() => {}} onToggleHidden={onToggleHidden} onClick={() => {}} />
     );
 
     const toggleBtn = screen.getByText('Скрыть');
@@ -67,7 +57,7 @@ describe('UserCard', () => {
   test('кнопка "Подробнее" вызывает onClick с пользователем', () => {
     const onClick = jest.fn();
     render(
-      <UserCard user={user} onFollow={() => {}} onToggleHidden={() => {}} onClick={onClick} busy={false} />
+      <UserCard user={user} onFollow={() => {}} onToggleHidden={() => {}} onClick={onClick} />
     );
 
     const detailsBtn = screen.getByText('Подробнее');
@@ -78,7 +68,7 @@ describe('UserCard', () => {
   test('отображает корректный текст кнопок при isFollowed и isHidden', () => {
     const followedUser = { ...user, isFollowed: true, isHidden: true };
     render(
-      <UserCard user={followedUser} onFollow={() => {}} onToggleHidden={() => {}} onClick={() => {}} busy={false} />
+      <UserCard user={followedUser} onFollow={() => {}} onToggleHidden={() => {}} onClick={() => {}} />
     );
 
     expect(screen.getByText('Отписаться')).toBeInTheDocument();
