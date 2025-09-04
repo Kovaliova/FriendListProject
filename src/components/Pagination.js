@@ -6,10 +6,9 @@ export default function Pagination({ page, total, limit, onPage }) {
 
   const getPages = () => {
     const pages = [];
-    const visible = 5; // максимальное количество видимых страниц
+    const visible = 4;
 
     if (totalPages <= visible) {
-      // если всего страниц меньше видимых, показываем все
       for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {
       let start = Math.max(page - 2, 1);

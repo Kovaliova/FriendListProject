@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function UserCard({ user, onFollow, onToggleHidden, busy, onClick }) {
+export default function UserCard({ user, onFollow, onToggleHidden, onClick }) {
   return (
     <div className="user-card">
       <div className="user-info">
@@ -17,7 +17,6 @@ export default function UserCard({ user, onFollow, onToggleHidden, busy, onClick
         <button
           className="btn primary"
           onClick={() => onFollow(user.id)}
-          disabled={busy}
         >
           <span>{user.isFollowed ? 'Отписаться' : 'Подписаться'}</span>
         </button>

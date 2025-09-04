@@ -15,7 +15,6 @@ export default function UserList() {
   const { users, limit, loading, toast } = useSelector(s => s);
   const [search, setSearch] = useState('');
   const [progress, setProgress] = useState(0);
-  const [busyIds, setBusyIds] = useState({});
   const [tab, setTab] = useState('all');
   const [tabPage, setTabPage] = useState({ all: 1, followed: 1, hidden: 1 });
   const [selectedUser, setSelectedUser] = useState(null);
@@ -98,12 +97,10 @@ export default function UserList() {
   }
 
   function onFollow(id) {
-    setBusyIds(prev => ({ ...prev, [id]: true }));
     dispatch(toggleFollow(id));
     const user = users.find(u => u.id === id);
     saveFollowToCloud({ id, followed: !user?.isFollowed })
       .then(() => dispatch(setToast(!user?.isFollowed ? 'Подписались' : 'Отписались')))
-      .finally(() => setBusyIds(prev => ({ ...prev, [id]: false })));
   }
 
   function onToggleHidden(id, confirmed = false) {
@@ -237,7 +234,7 @@ export default function UserList() {
   }
 
   return (
-    <>
+    <React.Fragment>
       <div className="tabs">
         <button className={tab === 'all' ? 'active' : ''} onClick={() => setTab('all')}>Все ({counts.all})</button>
         <button className={tab === 'followed' ? 'active' : ''} onClick={() => setTab('followed')}>Подписанные ({counts.followed})</button>
@@ -272,7 +269,6 @@ export default function UserList() {
                       user={u}
                       onFollow={() => showConfirm('follow', u.id)}
                       onToggleHidden={() => showConfirm('hide', u.id)}
-                      busy={!!busyIds[u.id]}
                       onClick={openUser}
                     />
                   </div>
@@ -373,6 +369,6 @@ export default function UserList() {
       )}
 
       <Toast text={toast} onHide={() => dispatch(setToast(''))} />
-    </>
+    </React.Fragment>
   );
 }

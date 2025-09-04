@@ -5,27 +5,25 @@ import {
 const persisted = JSON.parse(localStorage.getItem('mini-social') || '{}');
 
 const initialState = {
-  users: [],          // все загруженные пользователи
+  users: [],
   total: 0,
   page: 1,
   limit: 8,
   loading: false,
   toast: '',
-  follows: persisted.follows || {}, // { [id]: true|false }
-  hidden: persisted.hidden || {}    // { [id]: true|false }
+  follows: persisted.follows || {},
+  hidden: persisted.hidden || {}
 };
 
 export function rootReducer(state = initialState, action) {
   switch (action.type) {
     case SET_USERS: {
-      // сливаем новые данные с уже существующими
       const newUsers = action.payload.map(u => {
         const isFollowed = !!state.follows[u.id];
         const isHidden = !!state.hidden[u.id];
         return { ...u, isFollowed, isHidden };
       });
 
-      // создаем мапу для уникальности по id
       const usersMap = {};
       state.users.forEach(u => usersMap[u.id] = u);
       newUsers.forEach(u => usersMap[u.id] = u);
