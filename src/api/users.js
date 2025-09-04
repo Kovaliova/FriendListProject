@@ -8,7 +8,6 @@ export async function fetchUsers(page = 1, limit = 8) {
   if (!res.ok) throw new Error('Failed to load users');
   const json = await res.json();
 
-  // Получаем локальные подписки
   const persisted = JSON.parse(localStorage.getItem(LOCAL_FOLLOWS_KEY) || '{}');
 
   const users = (json.users || []).map(u => ({
@@ -22,17 +21,14 @@ export async function fetchUsers(page = 1, limit = 8) {
 }
 
 export async function saveFollowToCloud(payload) {
-  // Просто сохраняем локально (демо)
   const persisted = JSON.parse(localStorage.getItem(LOCAL_FOLLOWS_KEY) || '{}');
   persisted[payload.id] = payload.followed;
   localStorage.setItem(LOCAL_FOLLOWS_KEY, JSON.stringify(persisted));
 
-  // Имитация асинхронного запроса
   return new Promise(resolve => setTimeout(() => resolve({ success: true }), 200));
 }
 
 export function sendBulkWithProgress(bigObject, onProgress) {
-  // Используем XHR для демонстрации прогресса
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', 'https://httpbin.org/post', true);
