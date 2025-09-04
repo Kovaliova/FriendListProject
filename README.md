@@ -9,6 +9,7 @@ Friend List
 1.	Клонируйте репозиторий:
 
 git clone <URL_репозитория>
+
 cd FriendListProject
 
 
