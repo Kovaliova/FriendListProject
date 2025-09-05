@@ -9,13 +9,16 @@ import Toast from './Toast';
 import { TransitionGroup, CSSTransition } from "react-transition-group";
 import debounce from 'lodash.debounce';
 import { FaTrash, FaEdit } from 'react-icons/fa';
+import { useNavigate, useLocation } from 'react-router-dom';
+import queryString from 'query-string';
 
 export default function UserList() {
   const dispatch = useDispatch();
   const { users, limit, loading, toast } = useSelector(s => s);
+
   const [search, setSearch] = useState('');
   const [progress, setProgress] = useState(0);
-  const [tab, setTab] = useState('all');
+  const [tab, setTab] = useState('all'); 
   const [tabPage, setTabPage] = useState({ all: 1, followed: 1, hidden: 1 });
   const [selectedUser, setSelectedUser] = useState(null);
   const [loadingUser, setLoadingUser] = useState(false);
@@ -26,26 +29,22 @@ export default function UserList() {
   const [sortBy, setSortBy] = useState('name');
   const [deleteConfirm, setDeleteConfirm] = useState({ visible: false, userId: null, commentIndex: null });
   const [editingComment, setEditingComment] = useState(null);
+  const [allUsers60, setAllUsers60] = useState([]);
+
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isShowAllPage = location.pathname === '/all';
+
 
   useEffect(() => {
-    const stored = localStorage.getItem('userComments');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        const fixed = {};
-        Object.keys(parsed).forEach(key => {
-          fixed[key] = Array.isArray(parsed[key]) ? parsed[key] : [];
-        });
-        setComments(fixed);
-      } catch {
-        setComments({});
-      }
+    const params = queryString.parse(location.search);
+
+    if (params.sort && ['name','age','follow'].includes(params.sort)) setSortBy(params.sort);
+    if (!isShowAllPage && params.page) {
+      setTabPage(prev => ({ ...prev, [tab]: parseInt(params.page) || 1 }));
     }
-  }, []);
+  }, [location.search, tab, isShowAllPage]);
 
-  useEffect(() => {
-    localStorage.setItem('userComments', JSON.stringify(comments));
-  }, [comments]);
 
   useEffect(() => {
     async function loadAll() {
@@ -66,41 +65,27 @@ export default function UserList() {
       }
     }
     loadAll();
-  }, []);
+  }, [dispatch]);
 
-  function calculateAge(birthDate) {
-    if (!birthDate) return undefined;
-    const birth = new Date(birthDate);
-    const diff = new Date() - birth;
-    return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
-  }
+ 
+  const generateFirst60 = useCallback(() => {
+    if (!users.length) return;
+      setAllUsers60(users.slice(0, 60));
+  }, [users]);
 
   useEffect(() => {
-    if (!sending) return;
-    setProgress(0);
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          dispatch(setToast('Данные отправлены (симуляция)'));
-          setSending(false);
-          return 0;
-        }
-        return prev + 1;
-      });
-    }, 20);
-    return () => clearInterval(interval);
-  }, [sending]);
+    if (isShowAllPage) {
+      generateFirst60();
+      navigate(`/all?sort=${sortBy}`, { replace: true });
+    }
+  }, [isShowAllPage, generateFirst60, sortBy, navigate]);
 
-  function sendBulk() {
-    setSending(true);
-  }
 
   function onFollow(id) {
-    dispatch(toggleFollow(id));
     const user = users.find(u => u.id === id);
+    dispatch(toggleFollow(id));
     saveFollowToCloud({ id, followed: !user?.isFollowed })
-      .then(() => dispatch(setToast(!user?.isFollowed ? 'Подписались' : 'Отписались')))
+      .then(() => dispatch(setToast(!user?.isFollowed ? 'Подписались' : 'Отписались')));
   }
 
   function onToggleHidden(id, confirmed = false) {
@@ -123,10 +108,22 @@ export default function UserList() {
 
   function confirmActionHandler() {
     if (!confirmAction.userId) return;
-    if (confirmAction.type === 'follow') onFollow(confirmAction.userId);
-    if (confirmAction.type === 'hide') onToggleHidden(confirmAction.userId, true);
+
+    const user = users.find(u => u.id === confirmAction.userId);
+
+    if (confirmAction.type === 'follow') {
+      dispatch(toggleFollow(confirmAction.userId));
+      saveFollowToCloud({ id: confirmAction.userId, followed: !user?.isFollowed })
+        .then(() => dispatch(setToast(!user?.isFollowed ? 'Подписались' : 'Отписались')));
+    }
+
+    if (confirmAction.type === 'hide') {
+      onToggleHidden(confirmAction.userId, true);
+    }
+
     hideConfirm();
   }
+
 
   async function openUser(user) {
     try {
@@ -134,7 +131,7 @@ export default function UserList() {
       setSelectedUser(null);
       const res = await fetch(`https://dummyjson.com/users/${user.id}`);
       const data = await res.json();
-      data.age = data.age ?? (data.birthDate ? calculateAge(data.birthDate) : undefined);
+      data.age = data.age ?? (data.birthDate ? Math.floor((new Date() - new Date(data.birthDate)) / (1000*60*60*24*365.25)) : undefined);
       setSelectedUser(data);
       setCommentInput('');
       setEditingComment(null);
@@ -145,12 +142,31 @@ export default function UserList() {
     }
   }
 
+
+  useEffect(() => {
+    const stored = localStorage.getItem('userComments');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        const fixed = {};
+        Object.keys(parsed).forEach(key => fixed[key] = Array.isArray(parsed[key]) ? parsed[key] : []);
+        setComments(fixed);
+      } catch {
+        setComments({});
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('userComments', JSON.stringify(comments));
+  }, [comments]);
+
   function handleSaveCommentOrEdit() {
     if (!selectedUser || !commentInput.trim()) return;
     const now = new Date().toISOString();
     if (editingComment !== null) {
       setComments(prev => {
-        const userComments = Array.isArray(prev[selectedUser.id]) ? [...prev[selectedUser.id]] : [];
+        const userComments = [...prev[selectedUser.id]];
         userComments[editingComment].text = commentInput;
         userComments[editingComment].date = now;
         return { ...prev, [selectedUser.id]: userComments };
@@ -197,6 +213,7 @@ export default function UserList() {
 
   const debouncedSetSearch = useCallback(debounce(value => setSearch(value), 300), []);
 
+
   const counts = useMemo(() => ({
     all: users.length,
     followed: users.filter(u => u.isFollowed).length,
@@ -204,61 +221,109 @@ export default function UserList() {
   }), [users]);
 
   const filtered = useMemo(() => {
-    let list = users;
-    if (tab === 'followed') list = users.filter(u => u.isFollowed);
-    else if (tab === 'hidden') list = users.filter(u => u.isHidden);
+    if (tab === 'all' || isShowAllPage) return users;
+    if (tab === 'followed') return users.filter(u => u.isFollowed);
+    if (tab === 'hidden') return users.filter(u => u.isHidden);
+    return users;
+  }, [users, tab, isShowAllPage]);
 
-    if (search.trim()) {
-      const s = search.trim().toLowerCase();
-      list = list.filter(u =>
-        `${u.firstName || ''} ${u.lastName || ''} ${u.name || ''}`.toLowerCase().includes(s)
+  const currentPage = tabPage[tab];
+  const totalPages = Math.ceil(filtered.length / limit);
+
+  const paginated = useMemo(() => {
+    let list = [...users];
+
+      if (tab === 'followed') list = list.filter(u => u.isFollowed);
+      else if (tab === 'hidden') list = list.filter(u => u.isHidden);
+      else if (isShowAllPage) list = allUsers60;
+
+      if (search.trim()) {
+        const s = search.trim().toLowerCase();
+        list = list.filter(u =>
+         `${u.firstName || ''} ${u.lastName || ''} ${u.name || ''}`.toLowerCase().includes(s)
       );
     }
 
-    list = [...list];
     if (sortBy === 'name') list.sort((a, b) => ((a.firstName || a.name) > (b.firstName || b.name) ? 1 : -1));
     else if (sortBy === 'age') list.sort((a, b) => (a.age ?? 0) - (b.age ?? 0));
     else if (sortBy === 'follow') list.sort((a, b) => (b.isFollowed - a.isFollowed));
 
-    return list;
-  }, [users, tab, search, sortBy]);
+    if (!isShowAllPage) {
+      const start = (tabPage[tab] - 1) * limit;
+      list = list.slice(start, start + limit);
+   }
 
-  const currentPage = tabPage[tab];
-  const totalPages = Math.ceil(filtered.length / limit);
-  const paginated = (search.trim() || filtered.length <= limit)
-    ? filtered
-    : filtered.slice((currentPage - 1) * limit, currentPage * limit);
+    return list;
+  }, [users, allUsers60, search, sortBy, tab, tabPage, limit, isShowAllPage]);
+
+  const handleSortChange = (value) => {
+    setSortBy(value);
+    if (isShowAllPage) navigate(`/all?sort=${value}`, { replace: true });
+    else navigate(`/?page=${tabPage[tab]}&sort=${value}`, { replace: true });
+  };
 
   function handleTabPageChange(newPage) {
-    setTabPage(prev => ({ ...prev, [tab]: newPage }));
+  setTabPage(prev => ({ ...prev, [tab]: newPage }));
+  navigate(`/?page=${newPage}&sort=${sortBy}`);
+}
+
+  function handleTabChange(newTab) {
+    setTab(newTab);
+    setTabPage(prev => ({ ...prev, [newTab]: 1 }));
+    if (!isShowAllPage) navigate(`/?page=1&sort=${sortBy}`);
   }
+
+  useEffect(() => {
+    if (!sending) return;
+    setProgress(0);
+    const interval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          dispatch(setToast('Данные отправлены (симуляция)'));
+          setSending(false);
+          return 0;
+        }
+        return prev + 1;
+      });
+    }, 20);
+    return () => clearInterval(interval);
+  }, [sending, dispatch]);
 
   return (
     <React.Fragment>
-      <div className="tabs">
-        <button className={tab === 'all' ? 'active' : ''} onClick={() => setTab('all')}>Все ({counts.all})</button>
-        <button className={tab === 'followed' ? 'active' : ''} onClick={() => setTab('followed')}>Подписанные ({counts.followed})</button>
-        <button className={tab === 'hidden' ? 'active' : ''} onClick={() => setTab('hidden')}>Скрытые ({counts.hidden})</button>
-      </div>
+      {!isShowAllPage && (
+        <div className="tabs">
+          <button className={tab === 'all' ? 'active' : ''} onClick={() => handleTabChange('all')}>
+            Все ({counts.all})
+          </button>
+          <button className={tab === 'followed' ? 'active' : ''} onClick={() => handleTabChange('followed')}>
+            Подписанные ({counts.followed})
+          </button>
+          <button className={tab === 'hidden' ? 'active' : ''} onClick={() => handleTabChange('hidden')}>
+            Скрытые ({counts.hidden})
+          </button>
+        </div>
+      )}
 
       <div className="toolbar">
         <div className="search">
           <input placeholder="Поиск по имени…" onChange={e => debouncedSetSearch(e.target.value)} />
         </div>
         <div className="sort">
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)}>
+          <select value={sortBy} onChange={e => handleSortChange(e.target.value)}>
             <option value="name">Сортировать по имени</option>
             <option value="age">Сортировать по возрасту</option>
             <option value="follow">Сортировать по подпискам</option>
           </select>
         </div>
-        <button className="btn muted" onClick={sendBulk}><span>Отправить данные</span></button>
+        <button className="btn muted" onClick={() => setSending(true)}><span>Отправить данные</span></button>
       </div>
 
       {progress > 0 && <div className="progress"><div className="bar" style={{ width: `${progress}%` }} /></div>}
 
       {loading ? <Loader /> : (
-        <div className="user-list">
+        <div className={isShowAllPage ? 'all-users' : 'user-list'}>
           <TransitionGroup component={null}>
             {paginated.map(u => {
               const nodeRef = React.createRef();
@@ -280,7 +345,7 @@ export default function UserList() {
         </div>
       )}
 
-      {totalPages > 1 && !search.trim() && (
+      {!isShowAllPage && totalPages > 1 && !search.trim() && (
         <Pagination page={currentPage} total={filtered.length} limit={limit} onPage={handleTabPageChange} />
       )}
 
@@ -297,13 +362,11 @@ export default function UserList() {
                     <div className="meta">{selectedUser.isFollowed ? 'Подписаны' : 'Не подписаны'}</div>
                   </div>
                 </div>
-
                 <div className="user-details">
                   {['maidenName','age','gender','email','phone','username','password','birthDate','bloodGroup','height','weight','eyeColor'].map(key => (
                     selectedUser[key] !== undefined && <div key={key} className="detail"><strong>{formatLabel(key)}:</strong> <span>{selectedUser[key]}</span></div>
                   ))}
                 </div>
-
                 <div className="user-comment">
                   <textarea
                     value={commentInput}
@@ -314,44 +377,27 @@ export default function UserList() {
                     <span>{editingComment !== null ? 'Сохранить' : 'Сохранить комментарий'}</span>
                   </button>
                 </div>
-                  {Array.isArray(comments[selectedUser.id]) && comments[selectedUser.id].length > 0 && (
-                    <div className="saved-comment">
-                      <strong>Комментарии:</strong>
-                      {[...comments[selectedUser.id]]
-                        .sort((a,b) => new Date(b.date) - new Date(a.date))
-                        .map((c, i) => (
+                {Array.isArray(comments[selectedUser.id]) && comments[selectedUser.id].length > 0 && (
+                  <div className="saved-comment">
+                    <strong>Комментарии:</strong>
+                    {[...comments[selectedUser.id]]
+                      .sort((a,b) => new Date(b.date) - new Date(a.date))
+                      .map((c, i) => (
                         <div key={i} className="comment-item">
-                          <div className="comment-text">{c.text}</div>
-                          <div className="comment-meta">{new Date(c.date).toLocaleString()}</div>
-                          <div className="comment-actions">
-                              <button className="btn-icon edit" title="Редактировать" onClick={() => {
-                                  setCommentInput(c.text);
-                                  setEditingComment(i);
-                              }}>
-                                <FaEdit />
-                              </button>
-                              <button className="btn-icon delete" title="Удалить" onClick={() => handleDeleteComment(i)}>
-                                  <FaTrash />
-                              </button>
+                          <div className="comment-text">
+                            <span>{new Date(c.date).toLocaleString()}</span>
+                            {c.text}</div>
+                          <div className="comment-meta">
+                            <FaEdit className="icon edit" onClick={() => { setCommentInput(c.text); setEditingComment(i); }} />
+                            <FaTrash className="icon delete" onClick={() => handleDeleteComment(i)} />
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      ))
+                    }
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {deleteConfirm.visible && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <p>Точно хотите удалить этот комментарий?</p>
-            <div className="modal-buttons">
-              <button className="btn confirm" onClick={confirmDeleteComment}><span>Да</span></button>
-              <button className="btn cancel" onClick={hideDeleteConfirm}><span>Нет</span></button>
-            </div>
           </div>
         </div>
       )}
@@ -359,10 +405,22 @@ export default function UserList() {
       {confirmAction.visible && (
         <div className="modal-overlay">
           <div className="modal">
-            <p>{confirmAction.type === 'follow' ? 'Вы уверены, что хотите подписаться/отписаться?' : 'Вы уверены, что хотите скрыть/показать пользователя?'}</p>
+            <p>{confirmAction.type === 'follow' ? 'Подписаться/Отписаться?' : 'Скрыть/Показать?'}</p>
             <div className="modal-buttons">
               <button className="btn confirm" onClick={confirmActionHandler}><span>Да</span></button>
               <button className="btn cancel" onClick={hideConfirm}><span>Нет</span></button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirm.visible && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <p>Вы точно хотите удалить комментарий?</p>
+            <div className="modal-buttons">
+              <button className="btn confirm" onClick={confirmDeleteComment}><span>Да</span></button>
+              <button className="btn cancel" onClick={hideDeleteConfirm}><span>Нет</span></button>
             </div>
           </div>
         </div>
